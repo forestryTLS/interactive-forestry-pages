@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forest Succession Transition Probability Matrix</title>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Lucide React icons as inline SVG components
+        const Play = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+        );
+
+        const Pause = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+        );
+
+        const RotateCcw = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"></polyline>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+        );
+
+        const ChevronRight = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+        );
+
+        const ChevronLeft = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        );
+
+        const ForestSuccessionMatrix = () => {
+            const [step, setStep] = useState(0);
+            const [isPlaying, setIsPlaying] = useState(false);
+
+            const forestTypes = ['Cut', 'Young', 'Early Successional', 'Mid-Successional', 'Late Seral'];
+            const colors = {
+                'Cut': '#8b4513',
+                'Young': '#90ee90',
+                'Early Successional': '#6b8e23',
+                'Mid-Successional': '#4a7023',
+                'Late Seral': '#2d5016'
+            };
+
+            // Generate 50x50 matrices with realistic forest succession patterns
+            const generateInitialData = () => {
+                const data = [];
+                for (let i = 0; i < 50; i++) {
+                    const row = [];
+                    for (let j = 0; j < 50; j++) {
+                        const rand = Math.random();
+                        if (rand < 0.15) row.push('Cut');
+                        else if (rand < 0.30) row.push('Young');
+                        else if (rand < 0.50) row.push('Early Successional');
+                        else if (rand < 0.75) row.push('Mid-Successional');
+                        else row.push('Late Seral');
+                    }
+                    data.push(row);
+                }
+                return data;
+            };
+
+            const generateFinalData = (initial) => {
+                const data = [];
+                for (let i = 0; i < 50; i++) {
+                    const row = [];
+                    for (let j = 0; j < 50; j++) {
+                        const current = initial[i][j];
+                        const rand = Math.random();
+                        
+                        if (current === 'Cut') {
+                            row.push(rand < 0.7 ? 'Young' : rand < 0.85 ? 'Early Successional' : 'Cut');
+                        } else if (current === 'Young') {
+                            row.push(rand < 0.6 ? 'Early Successional' : rand < 0.85 ? 'Young' : rand < 0.90 ? 'Mid-Successional' : 'Cut');
+                        } else if (current === 'Early Successional') {
+                            row.push(rand < 0.5 ? 'Mid-Successional' : rand < 0.85 ? 'Early Successional' : rand < 0.92 ? 'Late Seral' : 'Cut');
+                        } else if (current === 'Mid-Successional') {
+                            row.push(rand < 0.4 ? 'Late Seral' : rand < 0.88 ? 'Mid-Successional' : rand < 0.95 ? 'Early Successional' : 'Cut');
+                        } else {
+                            row.push(rand < 0.92 ? 'Late Seral' : rand < 0.97 ? 'Mid-Successional' : 'Cut');
+                        }
+                    }
+                    data.push(row);
+                }
+                return data;
+            };
+
+            const [initialData] = useState(() => generateInitialData());
+            const [finalData] = useState(() => generateFinalData(initialData));
+
+            const calculateTransitions = () => {
+                const counts = {};
+                const totals = {};
+                
+                forestTypes.forEach(from => {
+                    totals[from] = 0;
+                    forestTypes.forEach(to => {
+                        counts[`${from}->${to}`] = 0;
+                    });
+                });
+
+                for (let i = 0; i < 50; i++) {
+                    for (let j = 0; j < 50; j++) {
+                        const from = initialData[i][j];
+                        const to = finalData[i][j];
+                        totals[from]++;
+                        counts[`${from}->${to}`]++;
+                    }
+                }
+
+                return { counts, totals };
+            };
+
+            const { counts: transitionCounts, totals: totalCounts } = calculateTransitions();
+
+            const countMatrix = forestTypes.map(from =>
+                forestTypes.map(to => transitionCounts[`${from}->${to}`])
+            );
+
+            const probabilityMatrix = forestTypes.map((from, i) =>
+                forestTypes.map((to, j) => 
+                    totalCounts[from] > 0 ? countMatrix[i][j] / totalCounts[from] : 0
+                )
+            );
+
+            const steps = [
+                {
+                    title: "Initial State (Time T1)",
+                    description: "This is our 50×50 forest landscape at the initial time period. We have 5 successional stages: Cut (recently harvested), Young (regenerating), Early Successional, Mid-Successional, and Late Seral (old growth).",
+                    showInitial: true,
+                    showFinal: false,
+                    showMatrix: false
+                },
+                {
+                    title: "Final State (Time T2)",
+                    description: "This is the forest state after time has passed. Forests have progressed through succession, with some cells harvested and others advancing to later stages.",
+                    showInitial: false,
+                    showFinal: true,
+                    showMatrix: false
+                },
+                {
+                    title: "Counting Transitions",
+                    description: "We count how many cells of each forest stage transitioned to each other stage across all 2,500 cells. This creates our transition count data.",
+                    showInitial: true,
+                    showFinal: true,
+                    showMatrix: false
+                },
+                {
+                    title: "Building the Count Matrix",
+                    description: "We organize all transition counts into a 5×5 matrix. Rows = initial forest stage, Columns = final forest stage.",
+                    showMatrix: true,
+                    matrixType: 'counts'
+                },
+                {
+                    title: "Calculating Probabilities",
+                    description: "To get probabilities, we divide each row by the total count for that initial forest stage. This shows the probability of transitioning from one stage to another.",
+                    showMatrix: true,
+                    matrixType: 'calculation',
+                    highlightRow: 0
+                },
+                {
+                    title: "Transition Probability Matrix",
+                    description: "The final matrix shows the probability of each transition. Each row sums to 1.0 (100%). This can be used to predict future forest states.",
+                    showMatrix: true,
+                    matrixType: 'probabilities'
+                }
+            ];
+
+            useEffect(() => {
+                let interval;
+                if (isPlaying && step < steps.length - 1) {
+                    interval = setInterval(() => {
+                        setStep(s => s + 1);
+                    }, 3000);
+                } else if (step >= steps.length - 1) {
+                    setIsPlaying(false);
+                }
+                return () => clearInterval(interval);
+            }, [isPlaying, step]);
+
+            const currentStep = steps[step];
+
+            const renderGrid = (data, label) => (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>{label}</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(50, 8px)', gap: '0' }}>
+                        {data.flat().map((cell, idx) => (
+                            <div
+                                key={idx}
+                                style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    backgroundColor: colors[cell]
+                                }}
+                                title={cell}
+                            />
+                        ))}
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>50×50 grid (2,500 cells)</p>
+                </div>
+            );
+
+            const renderCountMatrix = () => {
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>Transition Count Matrix</h3>
+                        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                            <table style={{ borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#f3f4f6', fontSize: '0.75rem' }}></th>
+                                        {forestTypes.map(type => (
+                                            <th key={type} style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#e5e7eb', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                {type}
+                                            </th>
+                                        ))}
+                                        <th style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#dbeafe', fontSize: '0.75rem', fontWeight: 'bold' }}>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {forestTypes.map((fromType, i) => (
+                                        <tr key={fromType} style={{ background: currentStep.highlightRow === i ? '#fef3c7' : 'white' }}>
+                                            <td style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#e5e7eb', fontWeight: '600', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                {fromType}
+                                            </td>
+                                            {countMatrix[i].map((count, j) => (
+                                                <td key={j} style={{ border: '1px solid #9ca3af', padding: '0.5rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                                                    {count}
+                                                </td>
+                                            ))}
+                                            <td style={{ border: '1px solid #9ca3af', padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', background: '#dbeafe', fontSize: '0.75rem' }}>
+                                                {totalCounts[fromType]}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderCalculationMatrix = () => {
+                const exampleType = forestTypes[0];
+                const exampleTotal = totalCounts[exampleType];
+                const exampleRow = countMatrix[0];
+                
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>Calculating Probabilities</h3>
+                        <div style={{ marginBottom: '1rem', fontSize: '0.875rem', background: '#eff6ff', padding: '0.75rem', borderRadius: '0.25rem', maxWidth: '28rem' }}>
+                            <p style={{ fontWeight: '600', margin: '0 0 0.5rem 0' }}>Example: {exampleType} row</p>
+                            <p style={{ margin: '0 0 0.25rem 0' }}>Total {exampleType} cells at T1: <span style={{ fontWeight: 'bold' }}>{exampleTotal}</span></p>
+                            <div style={{ marginTop: '0.5rem' }}>
+                                {forestTypes.map((to, j) => (
+                                    <p key={j} style={{ fontSize: '0.75rem', margin: '0.25rem 0' }}>
+                                        {exampleType}→{to}: {exampleRow[j]}/{exampleTotal} = {(exampleRow[j] / exampleTotal).toFixed(3)}
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                            <table style={{ borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#f3f4f6' }}></th>
+                                        {forestTypes.map(type => (
+                                            <th key={type} style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#e5e7eb', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                {type}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {forestTypes.map((fromType, i) => (
+                                        <tr key={fromType} style={{ background: i === 0 ? '#fef3c7' : 'white' }}>
+                                            <td style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#e5e7eb', fontWeight: '600', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                {fromType}
+                                            </td>
+                                            {countMatrix[i].map((count, j) => (
+                                                <td key={j} style={{ border: '1px solid #9ca3af', padding: '0.5rem', textAlign: 'center', fontSize: '0.75rem' }}>
+                                                    {count}/{totalCounts[fromType]}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderProbabilityMatrix = () => {
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>Transition Probability Matrix</h3>
+                        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                            <table style={{ borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#f3f4f6', fontSize: '0.75rem' }}>From \ To</th>
+                                        {forestTypes.map(type => (
+                                            <th key={type} style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#e5e7eb', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                {type}
+                                            </th>
+                                        ))}
+                                        <th style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#d1fae5', fontSize: '0.75rem', fontWeight: 'bold' }}>Sum</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {forestTypes.map((fromType, i) => (
+                                        <tr key={fromType}>
+                                            <td style={{ border: '1px solid #9ca3af', padding: '0.25rem', background: '#e5e7eb', fontWeight: '600', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                {fromType}
+                                            </td>
+                                            {probabilityMatrix[i].map((prob, j) => (
+                                                <td
+                                                    key={j}
+                                                    style={{
+                                                        border: '1px solid #9ca3af',
+                                                        padding: '0.5rem',
+                                                        textAlign: 'center',
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '0.75rem',
+                                                        backgroundColor: prob > 0 ? `rgba(52, 152, 219, ${Math.min(prob * 2, 1) * 0.5})` : 'white'
+                                                    }}
+                                                >
+                                                    {prob.toFixed(3)}
+                                                </td>
+                                            ))}
+                                            <td style={{ border: '1px solid #9ca3af', padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', background: '#d1fae5', fontSize: '0.75rem' }}>
+                                                {probabilityMatrix[i].reduce((a, b) => a + b, 0).toFixed(3)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#4b5563', maxWidth: '48rem', textAlign: 'center' }}>
+                            Each row represents the probability distribution of where that forest stage will transition to. 
+                            Notice the diagonal: forests tend to stay in the same stage or progress to the next successional stage.
+                        </p>
+                    </div>
+                );
+            };
+
+            return (
+                <div style={{ maxWidth: '96rem', margin: '0 auto', padding: '1.5rem', background: 'white', borderRadius: '0.5rem' }}>
+                    <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '0.5rem' }}>Forest Succession Transition Probability Matrix</h1>
+                    <p style={{ textAlign: 'center', color: '#4b5563', marginBottom: '1.5rem' }}>5-Class Forest Succession Model (50×50 Landscape)</p>
+
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>Step {step + 1} of {steps.length}</span>
+                            <span style={{ fontSize: '0.875rem', color: '#4b5563' }}>{currentStep.title}</span>
+                        </div>
+                        <div style={{ width: '100%', background: '#e5e7eb', borderRadius: '9999px', height: '0.5rem' }}>
+                            <div
+                                style={{
+                                    background: '#3b82f6',
+                                    height: '0.5rem',
+                                    borderRadius: '9999px',
+                                    transition: 'width 0.3s',
+                                    width: `${((step + 1) / steps.length) * 100}%`
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    <div style={{ background: '#eff6ff', borderLeft: '4px solid #3b82f6', padding: '1rem', marginBottom: '1.5rem' }}>
+                        <p style={{ fontSize: '0.875rem', margin: 0 }}>{currentStep.description}</p>
+                    </div>
+
+                    <div style={{ minHeight: '24rem', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                        {currentStep.showInitial && currentStep.showFinal && (
+                            <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+                                {renderGrid(initialData, "Time T1 (Initial)")}
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <ChevronRight className="w-8 h-8 text-gray-400" />
+                                </div>
+                                {renderGrid(finalData, "Time T2 (Final)")}
+                            </div>
+                        )}
+                        {currentStep.showInitial && !currentStep.showFinal && renderGrid(initialData, "Time T1 (Initial)")}
+                        {!currentStep.showInitial && currentStep.showFinal && renderGrid(finalData, "Time T2 (Final)")}
+                        {currentStep.showMatrix && currentStep.matrixType === 'counts' && renderCountMatrix()}
+                        {currentStep.showMatrix && currentStep.matrixType === 'calculation' && renderCalculationMatrix()}
+                        {currentStep.showMatrix && currentStep.matrixType === 'probabilities' && renderProbabilityMatrix()}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem' }}>
+                        <button
+                            onClick={() => {
+                                setStep(0);
+                                setIsPlaying(false);
+                            }}
+                            style={{ padding: '0.5rem', borderRadius: '0.5rem', background: '#e5e7eb', border: 'none', cursor: 'pointer' }}
+                            title="Reset"
+                        >
+                            <RotateCcw />
+                        </button>
+                        <button
+                            onClick={() => setStep(Math.max(0, step - 1))}
+                            disabled={step === 0}
+                            style={{ padding: '0.5rem', borderRadius: '0.5rem', background: '#e5e7eb', border: 'none', cursor: 'pointer', opacity: step === 0 ? 0.5 : 1 }}
+                        >
+                            <ChevronLeft />
+                        </button>
+                        <button
+                            onClick={() => setIsPlaying(!isPlaying)}
+                            style={{ padding: '0.5rem 1.5rem', borderRadius: '0.5rem', background: '#3b82f6', color: 'white', fontWeight: '600', border: 'none', cursor: 'pointer' }}
+                        >
+                            {isPlaying ? <Pause /> : <Play />}
+                        </button>
+                        <button
+                            onClick={() => setStep(Math.min(steps.length - 1, step + 1))}
+                            disabled={step === steps.length - 1}
+                            style={{ padding: '0.5rem', borderRadius: '0.5rem', background: '#e5e7eb', border: 'none', cursor: 'pointer', opacity: step === steps.length - 1 ? 0.5 : 1 }}
+                        >
+                            <ChevronRight />
+                        </button>
+                    </div>
+
+                    <div style={{ marginTop: '2rem', padding: '1rem', background: '#f9fafb', borderRadius: '0.5rem' }}>
+                        <h4 style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.875rem' }}>Forest Successional Stages:</h4>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                            {forestTypes.map(type => (
+                                <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{ width: '1.5rem', height: '1.5rem', borderRadius: '0.25rem', backgroundColor: colors[type] }} />
+                                    <span style={{ fontSize: '0.875rem' }}>{type}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: '#4b5563', marginTop: '0.75rem', margin: '0.75rem 0 0 0' }}>
+                            Forest succession typically progresses: Cut → Young → Early → Mid → Late Seral, though harvesting can reset any stage back to Cut.
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<ForestSuccessionMatrix />, document.getElementById('root'));
+    </script>
+</body>
+</html>
